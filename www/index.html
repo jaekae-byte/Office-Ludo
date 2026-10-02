@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Office Ludo</title>
+<style>
+:root{--bg:#e9eef5;--fg:#17202e;--card:#fff;--line:#c5cfdd;--hl:#f2c230;--hlfg:#1a1400;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1722;--fg:#e8edf5;--card:#192335;--line:#2b3a52}}
+:root[data-theme="dark"]{--bg:#0f1722;--fg:#e8edf5;--card:#192335;--line:#2b3a52}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:14px}
+h1{font-size:26px;margin:4px 0 12px;letter-spacing:-.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:flex;align-items:center;gap:8px;margin:6px 0}
+input,select,button{font:inherit;color:inherit;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:9px 11px}
+input{flex:1;min-width:0}
+button{cursor:pointer}
+button.p{background:var(--hl);color:var(--hlfg);border:0;font-weight:700}
+button:disabled{opacity:.5;cursor:default}
+.dot{width:14px;height:14px;border-radius:50%;flex:none}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#status{font-weight:700;display:flex;align-items:center;gap:8px}
+#tag{font-size:13px;opacity:.85;min-height:18px}
+#board{width:100%;height:auto;max-height:64vh;display:block}
+#dice{font-size:46px;line-height:1;padding:8px 18px;min-width:84px}
+#log{font-size:14px;margin:0;padding-left:18px}
+#code{font-size:34px;font-weight:800;letter-spacing:6px}
+#msg{color:#e63946;min-height:20px;margin:6px 0}
+.mv{cursor:pointer;animation:p .7s infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes p{to{transform:scale(1.28)}}
+@media (prefers-reduced-motion:reduce){.mv{animation:none}}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:24px;z-index:5}
+#ov div{background:var(--card);border-radius:16px;padding:20px;max-width:380px;text-align:center}
+.hide{display:none}
+h1{background:var(--hl);color:var(--hlfg);padding:8px 12px;border-radius:12px}
+.note{background:#fff3a6;color:#2a2400;border-color:#e0c94a;transform:rotate(-.5deg)}
+.note button{background:#fffbe0;color:#2a2400;border-color:#e0c94a;font-size:20px}
+.roll{animation:sh .12s infinite alternate}@keyframes sh{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+#bub{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);background:var(--hl);color:var(--hlfg);padding:8px 16px;border-radius:20px;font-weight:700;display:none;z-index:9}
+@media (prefers-reduced-motion:reduce){.roll{animation:none}}
+</style></head><body><main>
+<h1>💼 ഓഫീസ് ലുഡോ</h1>
+
+<section id="conn" class="card">
+ <label>നിങ്ങളുടെ പേര് <input id="name" maxlength="14"></label>
+ <label>റൂം കോഡ് <input id="room" maxlength="6" autocapitalize="characters" placeholder="ഉദാ: TEAM"></label>
+ <div class="row"><button class="p" id="create">റൂം ഉണ്ടാക്കുക</button><button id="join">റൂമിൽ ചേരുക</button><button id="sndbtn">ശബ്ദങ്ങൾ</button></div>
+ <div id="msg"></div>
+ <details><summary>സെർവർ വിലാസം</summary><label><input id="srv" placeholder="wss://your-server.onrender.com"></label></details>
+</section>
+
+<section id="lobby" class="card hide">
+ <div>ഈ റൂം കോഡ് കൂട്ടുകാർക്ക് അയക്കൂ</div><div id="code"></div>
+ <div id="lobbylist"></div>
+ <div id="hostctl" class="row" style="margin-top:10px"><label>ഓരോരുത്തർക്കും കരുക്കൾ <select id="nt"><option>2</option><option>3</option><option>4</option></select></label><button class="p" id="start">കളി തുടങ്ങുക</button></div>
+ <div id="wait" class="hide">ഹോസ്റ്റ് കളി തുടങ്ങുന്നതുവരെ കാത്തിരിക്കൂ...</div>
+ <div class="row" style="margin-top:10px"><button id="sndbtn3">ശബ്ദങ്ങൾ</button><button class="leave">പുറത്തുപോകുക</button></div>
+</section>
+
+<section id="game" class="hide">
+ <div class="card">
+  <div id="status"></div><div id="tag"></div>
+  <svg id="board" viewBox="0 0 780 780" role="img" aria-label="Ludo board"></svg>
+  <div class="row" style="justify-content:center;margin-top:6px">
+   <button id="dice" class="p" aria-label="Roll dice">🎲</button>
+   <button id="peek">🤫 രഹസ്യം നോക്കൂ</button>
+   <button id="sndbtn2">ശബ്ദങ്ങൾ</button>
+   <button class="leave">പുറത്തുപോകുക</button>
+  </div>
+ </div>
+ <div class="card note"><b>📌 നോട്ടീസ് ബോർഡ്</b><div id="react" class="row" style="margin:8px 0"></div><ul id="log"></ul></div>
+</section>
+
+<section id="snd" class="hide card"><b>ശബ്ദങ്ങൾ തിരഞ്ഞെടുക്കൂ</b><div id="sndlist"></div><button id="sndclose" style="margin-top:8px">ശരി</button></section>
+<div id="bub"></div><div id="ov"><div id="ovc"></div></div>
+</main>
+<script>
+const DEFAULT_SERVER=""; // e.g. "wss://office-ludo.onrender.com" so players never have to type it
+const $=s=>document.querySelector(s), rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1)), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const COLORS=['#e63946','#f4812a','#e8c020','#2fa36b','#25b5d9','#3d5afe','#9b5de5','#ec4899'];
+const EMO=['💼','🖥️','☕','📎','📞','🗂️','🖨️','📊'],REACT=['☕ ചായ ബ്രേക്ക്!','📞 മീറ്റിംഗ്!','👏 പൊളി!','😂 അയ്യോ!','🙏 ക്ഷമിക്കണം'];
+let prevT=-1;
+const FACE='⚀⚁⚂⚃⚄⚅',C=390,N=64,ang=i=>i/N*2*Math.PI-Math.PI/2,pol=(a,r)=>[C+r*Math.cos(a),C+r*Math.sin(a)],seatOf=(p,n)=>Math.round(p*8/n)%8;
+const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- Sounds: edit/add presets here. [wave, startHz, endHz, seconds, volume, delay] ---------- */
+const R=(n,g,a)=>Array.from({length:n},(_,i)=>[...a,i*g]);
+const SND={
+ roll:{'Keyboard clicks':R(8,.07,['square',1800,900,.03,.08]),'Coin shake':R(9,.06,['triangle',3000,2500,.04,.07]),'Stapler':[['square',300,80,.06,.2,0],['square',200,60,.05,.2,.12]],'Silent':[]},
+ result:{'Ding':[['sine',1320,1320,.5,.25,0]],'Printer beep':R(3,.12,['square',1000,1000,.08,.12]),'Email ping':[['sine',880,880,.15,.2,0],['sine',1320,1320,.3,.2,.12]],'Drum hit':[['sine',160,50,.25,.4,0]],'Silent':[]},
+ jump:{'Pop':[['sine',600,200,.08,.3,0]],'Mouse click':[['square',2000,1500,.02,.15,0],['square',1200,900,.02,.1,.04]],'Boing':[['sine',200,600,.2,.25,0]],'Footstep':[['sine',120,60,.08,.35,0]],'Silent':[]},
+ capture:{'Meeting buzzer':[['sawtooth',150,150,.5,.25,0]],'Error 404':[['square',440,440,.12,.15,0],['square',330,330,.12,.15,.14],['square',220,220,.25,.15,.28]],'Paper shredder':R(14,.03,['sawtooth',400,300,.03,.1]),'Air horn':[['sawtooth',350,350,.6,.25,0],['sawtooth',440,440,.6,.2,0]],'Silent':[]},
+ boss:{'Elevator ding':[['sine',1000,1000,.6,.2,0]],'Dramatic sting':[['sawtooth',110,110,.5,.25,0],['sawtooth',165,165,.5,.2,.15]],'Fanfare':[['square',523,523,.15,.15,0],['square',659,659,.15,.15,.15],['square',784,784,.35,.15,.3]],'Silent':[]}
+};
+const SNAME={roll:'ഡൈസ് ഉരുട്ടൽ',result:'ഡൈസ് ഫലം',jump:'കരു ചാട്ടം',capture:'കരു വെട്ടൽ',boss:'ബോസ് ഇവന്റ്'};
+const LBL={'Keyboard clicks':'കീബോർഡ് ടൈപ്പിംഗ്','Coin shake':'നാണയ കിലുക്കം','Stapler':'സ്റ്റേപ്ലർ','Silent':'നിശബ്ദം','Ding':'മണി','Printer beep':'പ്രിന്റർ ബീപ്','Email ping':'ഇമെയിൽ പിംഗ്','Drum hit':'ഡ്രം','Pop':'പോപ്പ്','Mouse click':'മൗസ് ക്ലിക്ക്','Boing':'ബോയിംഗ്','Footstep':'കാൽപ്പെരുമാറ്റം','Meeting buzzer':'മീറ്റിംഗ് ബസർ','Error 404':'എറർ 404','Paper shredder':'പേപ്പർ ഷ്രെഡർ','Air horn':'എയർ ഹോൺ','Elevator ding':'ലിഫ്റ്റ് മണി','Dramatic sting':'നാടകീയ സംഗീതം','Fanfare':'ഫാൻഫെയർ'};
+let snd={roll:'Keyboard clicks',result:'Ding',jump:'Pop',capture:'Meeting buzzer',boss:'Elevator ding'};
+try{Object.assign(snd,JSON.parse(ls.get('ludoSnd')||'{}'))}catch(e){}
+let AC;function ctx(){AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC}
+function play(ev,nm){const seq=SND[ev][nm||snd[ev]]||[];try{const c=ctx(),t=c.currentTime;seq.forEach(([w,f0,f1,d,v,t0])=>{const o=c.createOscillator(),g=c.createGain();o.type=w;o.frequency.setValueAtTime(f0,t+t0);o.frequency.exponentialRampToValueAtTime(Math.max(f1,1),t+t0+d);g.gain.setValueAtTime(v,t+t0);g.gain.exponentialRampToValueAtTime(.001,t+t0+d);o.connect(g);g.connect(c.destination);o.start(t+t0);o.stop(t+t0+d+.02)})}catch(e){}}
+function buildSnd(){$('#sndlist').innerHTML=Object.keys(SND).map(ev=>`<label><span style="width:90px">${SNAME[ev]}</span><select data-ev="${ev}">${Object.keys(SND[ev]).map(n=>`<option value="${n}"${snd[ev]===n?' selected':''}>${LBL[n]||n}</option>`).join('')}</select><button data-pv="${ev}">▶</button></label>`).join('')}
+$('#sndlist').onchange=e=>{const ev=e.target.dataset.ev;if(!ev)return;snd[ev]=e.target.value;ls.set('ludoSnd',JSON.stringify(snd));play(ev)};
+$('#sndlist').onclick=e=>{const ev=e.target.dataset.pv;if(ev)play(ev,$(`select[data-ev=${ev}]`).value)};
+['#sndbtn','#sndbtn2','#sndbtn3'].forEach(s=>$(s).onclick=()=>{buildSnd();$('#snd').classList.remove('hide')});
+$('#sndclose').onclick=()=>$('#snd').classList.add('hide');
+
+/* ---------- Connection ---------- */
+let ws,S=null,you=-1,secret=null,busy=false,ov=null,sess=null,q=Promise.resolve();
+try{sess=JSON.parse(ls.get('ludoSess')||'null')}catch(e){}
+$('#name').value=ls.get('ludoName')||'';$('#srv').value=ls.get('ludoSrv')||DEFAULT_SERVER;
+const msg=t=>$('#msg').textContent=t||'';
+const show=n=>['conn','lobby','game'].forEach(s=>$('#'+s).classList.toggle('hide',s!==n));
+const tx=o=>ws&&ws.readyState===1&&ws.send(JSON.stringify(o));
+function connect(){
+ const url=$('#srv').value.trim();if(!url){show('conn');return msg('സെർവർ വിലാസം നൽകൂ.')}
+ ls.set('ludoSrv',url);msg('കണക്ട് ചെയ്യുന്നു... (സൗജന്യ സെർവർ ഉണരാൻ 30 സെക്കൻഡ് എടുത്തേക്കാം)');
+ try{ws=new WebSocket(url)}catch(e){return msg('സെർവർ വിലാസം തെറ്റാണ്')}
+ const w=ws;
+ w.onopen=()=>tx({t:'join',room:sess.room,name:sess.name,create:sess.create});
+ w.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='react')return bubble(m);q=q.then(()=>handle(m))};
+ w.onclose=()=>{if(sess&&w===ws){msg('കണക്ഷൻ പോയി. വീണ്ടും ശ്രമിക്കുന്നു...');setTimeout(()=>{if(sess&&w===ws)connect()},2000)}};
+}
+function enter(create){
+ const name=$('#name').value.trim(),room=($('#room').value.trim().toUpperCase())||(create?Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[rnd(0,23)]).join(''):'');
+ if(!name||!room)return msg('പേരും റൂം കോഡും നൽകൂ');
+ ctx();ls.set('ludoName',name);sess={name,room,create};ls.set('ludoSess',JSON.stringify(sess));connect();
+}
+$('#create').onclick=()=>enter(true);$('#join').onclick=()=>enter(false);
+document.querySelectorAll('.leave').forEach(b=>b.onclick=()=>{sess=null;ls.set('ludoSess',null);S=null;if(ws)ws.close();show('conn');msg('')});
+setInterval(()=>tx({t:'ping'}),25000);
+if(sess)connect();
+
+async function handle(m){
+ if(m.type==='err'){sess=null;ls.set('ludoSess',null);if(ws)ws.close();S=null;show('conn');return msg(m.msg)}
+ busy=true;you=m.you;secret=m.secret;if(sess&&sess.create){sess.create=false;ls.set('ludoSess',JSON.stringify(sess))}
+ msg('');
+ if(m.rolled){play('roll');$('#dice').classList.add('roll');for(let i=0;i<8;i++){$('#dice').textContent=FACE[rnd(0,5)];await sleep(80)}$('#dice').classList.remove('roll');S=m.s;draw();play('result')}
+ else if(m.mv&&S&&S.phase==='play'){await anim(m.mv);S=m.s}
+ else S=m.s;
+ (m.fx||[]).forEach((f,i)=>setTimeout(()=>play(f),i*300));
+ if(S.phase==='play'&&S.turn===you&&S.roll==null&&prevT!==you&&navigator.vibrate)navigator.vibrate(250);
+ prevT=S.turn;busy=false;draw();
+}
+async function anim(mv){
+ let v=mv.from;const to=mv.to,d=to>=v?1:-1;
+ if(v<0){ov={pi:mv.pi,t:mv.t,v:0};play('jump');draw();await sleep(220)}
+ else while(v!==to){v+=d;ov={pi:mv.pi,t:mv.t,v};play('jump');draw();await sleep(150)}
+ ov=null;
+}
+
+/* ---------- Drawing ---------- */
+function xy(P,pi,t,pr){
+ const s=P.seat*8;
+ if(pr<0){const a=ang(s-3),[x,y]=pol(a,330),pa=a+Math.PI/2,o=(t-(S.T-1)/2)*30;return[x+Math.cos(pa)*o,y+Math.sin(pa)*o]}
+ if(pr<60)return pol(ang(s+pr),270);
+ return pol(ang(s),pr<64?215-(pr-60)*40:55);
+}
+function draw(){
+ if(!S)return;
+ if(S.phase==='lobby'){show('lobby');$('#code').textContent=S.room;const n=S.players.length;
+  $('#lobbylist').innerHTML=S.players.map((p,i)=>`<label><span class="dot" style="background:${COLORS[seatOf(i,n)]}"></span>${p.name}${i===you?' (നിങ്ങൾ)':''}${i===S.host?' (ഹോസ്റ്റ്)':''}${p.online?'':' (ഓഫ്‌ലൈൻ)'}</label>`).join('');
+  const host=you===S.host;$('#hostctl').classList.toggle('hide',!host);$('#wait').classList.toggle('hide',host);$('#start').disabled=n<2;$('#ov').style.display='none';return}
+ show('game');
+ let h='<defs><pattern id="gr" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="var(--line)" stroke-width="1" opacity=".5"/></pattern></defs><rect width="780" height="780" rx="24" fill="url(#gr)"/>';
+ for(const P of S.players){const s=P.seat*8,c=COLORS[P.seat],[yx,yy]=pol(ang(s-3),330);
+  h+=`<circle cx="${yx}" cy="${yy}" r="54" fill="${c}" opacity=".18" stroke="${c}" stroke-width="2"/>`;
+  for(let k=0;k<4;k++){const[x,y]=pol(ang(s),215-k*40);h+=`<circle cx="${x}" cy="${y}" r="15" fill="${c}" opacity=".55"/>`}
+  const[fx,fy]=pol(ang(s),55);h+=`<circle cx="${fx}" cy="${fy}" r="18" fill="${c}"/>`}
+ const seatCol={};S.players.forEach(P=>seatCol[P.seat]=COLORS[P.seat]);
+ for(let i=0;i<N;i++){const[x,y]=pol(ang(i),270),sc=i%8===0?seatCol[i/8]:null,sf=i%8===0||i%8===4;
+  h+=`<circle cx="${x}" cy="${y}" r="15" fill="${sc||'var(--card)'}" stroke="var(--line)" stroke-width="2"/>`;
+  if(sf)h+=`<text x="${x}" y="${y}" text-anchor="middle" dy=".35em" font-size="15">☕</text>`}
+ h+=`<text x="${C}" y="${C-8}" text-anchor="middle" font-size="40">🏢</text><text x="${C}" y="${C+22}" text-anchor="middle" font-size="16" fill="var(--fg)">ദിവസം ${S.round}</text>`;
+ const used={},mine=S.turn===you&&S.roll!=null&&!busy&&S.phase==='play';
+ S.players.forEach((P,pi)=>P.tokens.forEach((p0,t)=>{
+  const pr=ov&&ov.pi===pi&&ov.t===t?ov.v:p0;let[x,y]=xy(P,pi,t,pr);
+  const k=Math.round(x)+','+Math.round(y);used[k]=(used[k]||0)+1;if(used[k]>1&&pr>=0){x+=(used[k]-1)*7;y-=(used[k]-1)*7}
+  const mv=mine&&pi===you&&S.movable.includes(t);
+  h+=`<g ${mv?`data-t="${t}" class="mv"`:''}><circle cx="${x}" cy="${y}" r="14" fill="${COLORS[P.seat]}" stroke="#fff" stroke-width="3"/><text x="${x}" y="${y}" text-anchor="middle" dy=".35em" font-size="17">${EMO[P.seat]}</text></g>`}));
+ $('#board').innerHTML=h;
+ const P=S.players[S.turn];
+ $('#status').innerHTML=`<span class="dot" style="background:${COLORS[P.seat]}"></span>${S.turn===you?'നിങ്ങളുടെ ഊഴം':P.name+'ന്റെ ഊഴം'}`;
+ const tag=[];if(S.ev==='on')tag.push('📣 ഓഫീസിൽ ഒരു രഹസ്യ സംഭവം നടക്കുന്നു');if(S.round<=S.chaosEnd)tag.push(`⚠️ ഓഫീസ് ബഹളം ദിവസം ${S.chaosEnd} വരെ`);if(S.players[you]&&S.players[you].boost)tag.push('⭐ പ്രമോഷൻ: അടുത്ത ഏറിൽ +3');
+ $('#tag').textContent=tag.join('  ');
+ $('#log').innerHTML=S.log.map(l=>`<li>${l}</li>`).join('');
+ $('#dice').disabled=!(S.phase==='play'&&S.turn===you&&S.roll==null&&!busy);
+ if(!busy)$('#dice').textContent=S.roll!=null?FACE[S.roll-1]:'🎲';
+ if(S.phase==='over'&&!busy){$('#ovc').innerHTML=`<div style="font-size:54px">🏆</div><h2>${S.players[S.winner].name} ജയിച്ചു!</h2><p>പ്രമോഷൻ അംഗീകരിച്ചു.</p><button class="p" onclick="tx({t:'again'})">ലോബിയിലേക്ക്</button>`;$('#ov').style.display='flex'}
+ else if(!(S.phase==='play'&&$('#ov').dataset.peek))$('#ov').style.display=S.phase==='over'?'flex':'none';
+}
+$('#board').onclick=e=>{const g=e.target.closest('[data-t]');if(g)tx({t:'pick',tok:+g.dataset.t})};
+$('#dice').onclick=()=>{ctx();tx({t:'roll'})};
+$('#start').onclick=()=>{ctx();tx({t:'start',T:+$('#nt').value})};
+/* Secret check: only the boss's phone is ever told it is the boss. Everyone else sees the same neutral note. */
+$('#peek').onclick=()=>{
+ $('#ovc').innerHTML=`<p>${secret?`🤫 <b>നിങ്ങളാണ് ബോസ്!</b> ദിവസം ${secret.end} വരെ. ആരെങ്കിലും നിങ്ങളുടെ കരു വെട്ടിയാൽ അവർക്ക് പ്രമോഷൻ കിട്ടും. ആരും വെട്ടിയില്ലെങ്കിൽ മറ്റെല്ലാവർക്കും ഓഫീസ് ബഹളം.`:'ഒന്നുമില്ല. പോയി പണിയെടുക്ക്! 😉'}</p><button class="p" id="pk">അടയ്ക്കുക</button>`;
+ $('#ov').dataset.peek=1;$('#ov').style.display='flex';$('#pk').onclick=()=>{delete $('#ov').dataset.peek;$('#ov').style.display='none'};
+};
+function bubble(m){const b=$('#bub');b.textContent=m.from+': '+REACT[m.k];b.style.display='block';clearTimeout(b.t);b.t=setTimeout(()=>b.style.display='none',2500)}
+$('#react').innerHTML=REACT.map((r,i)=>`<button data-k="${i}">${r.split(' ')[0]}</button>`).join('');
+$('#react').onclick=e=>{const k=e.target.dataset.k;if(k!=null)tx({t:'react',k:+k})};
+</script></body></html>
